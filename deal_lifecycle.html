@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deal Lifecycle — Feature Permissions</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1916;
+    --ink-2: #4a4945;
+    --ink-3: #8a8880;
+    --surface: #faf9f6;
+    --surface-2: #f0efe9;
+    --surface-3: #e4e3db;
+    --border: rgba(26,25,22,0.10);
+    --border-2: rgba(26,25,22,0.18);
+    --accent: #1a3a5c;
+    --accent-light: #e8f0f8;
+    --accent-mid: #3d6b9e;
+    --yes: #1a5c3a;
+    --yes-bg: #eaf5ee;
+    --no: #5c1a1a;
+    --no-bg: #f5eaea;
+    --changed: #5c440a;
+    --changed-bg: #fdf3d8;
+    --stage-dot: #1a3a5c;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--surface);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--accent);
+    color: #fff;
+    padding: 36px 48px 28px;
+  }
+  .header-eyebrow {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 8px;
+  }
+  .header h1 {
+    font-size: 26px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .header-sub {
+    font-size: 13px;
+    opacity: 0.65;
+    max-width: 520px;
+    line-height: 1.5;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    padding: 14px 48px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .legend-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 20px; }
+  .badge-yes  { background: var(--yes-bg);     color: var(--yes);     }
+  .badge-no   { background: var(--no-bg);      color: var(--no);      }
+  .badge-new  { background: var(--changed-bg); color: var(--changed); }
+  .badge-dot  { width: 6px; height: 6px; border-radius: 50%; }
+  .badge-yes .badge-dot  { background: var(--yes);     }
+  .badge-no  .badge-dot  { background: var(--no);      }
+  .badge-new .badge-dot  { background: var(--changed); }
+
+  /* ── Layout ── */
+  .shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: calc(100vh - 160px);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--surface-2);
+    padding: 24px 0;
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 160px);
+    overflow-y: auto;
+  }
+  .sidebar-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0 20px 12px;
+  }
+  .stage-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .stage-item:hover { background: var(--border); }
+  .stage-item.active {
+    background: var(--accent-light);
+  }
+  .stage-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+  }
+  .stage-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    border: 1.5px solid var(--border-2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600;
+    color: var(--ink-2);
+    flex-shrink: 0;
+    margin-top: 1px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .stage-item.active .stage-num {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .stage-text { flex: 1; }
+  .stage-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .stage-trigger {
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-top: 2px;
+    line-height: 1.3;
+  }
+  .stage-connector {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 20px 0 31px;
+  }
+  .stage-connector-line {
+    width: 1px;
+    height: 14px;
+    background: var(--surface-3);
+    margin-left: 10px;
+  }
+
+  /* ── Main Content ── */
+  .main { padding: 32px 40px; }
+
+  .stage-header {
+    margin-bottom: 28px;
+  }
+  .stage-header-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--accent-mid);
+    margin-bottom: 6px;
+  }
+  .stage-header h2 {
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .stage-trigger-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .trigger-arrow { font-size: 14px; color: var(--accent); }
+
+  /* ── Stats row ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .stat-label { font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-size: 24px; font-weight: 500; color: var(--ink); }
+  .stat-value.yes-color  { color: var(--yes); }
+  .stat-value.no-color   { color: var(--no); }
+  .stat-value.new-color  { color: var(--changed); }
+
+  /* ── Filter row ── */
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-label { font-size: 12px; color: var(--ink-3); margin-right: 4px; }
+  .filter-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border-2);
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { background: var(--surface-2); }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ── Feature grid ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .feature-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: #fff;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .feature-card:hover { border-color: var(--border-2); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+  .feature-card.changed { border-color: #d4a512; background: var(--changed-bg); }
+  .feature-icon {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .feature-icon.yes  { background: var(--yes-bg);     }
+  .feature-icon.no   { background: var(--no-bg);      }
+  .feature-card-body { flex: 1; }
+  .feature-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.3;
+    margin-bottom: 3px;
+  }
+  .feature-status {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .feature-status.yes  { color: var(--yes); }
+  .feature-status.no   { color: var(--no);  }
+  .changed-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--changed);
+    background: #f5e099;
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+
+  /* ── Nav arrows ── */
+  .nav-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .nav-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border-2);
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--accent); color: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-stage-info { font-size: 12px; color: var(--ink-3); }
+
+  .empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--ink-3);
+    font-size: 14px;
+  }
+
+  @media print {
+    .sidebar { display: none; }
+    .shell { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-eyebrow">Treasure Hill Homes · ERP System</div>
+  <h1>Deal Lifecycle — Feature Permissions</h1>
+  <div class="header-sub">Review which features are enabled or disabled at each stage of the deal process. Changes from the previous stage are highlighted.</div>
+</div>
+
+<div class="legend">
+  <span class="legend-label">Key</span>
+  <span class="badge badge-yes"><span class="badge-dot"></span>Enabled</span>
+  <span class="badge badge-no"><span class="badge-dot"></span>Disabled</span>
+  <span class="badge badge-new"><span class="badge-dot"></span>Changed from previous stage</span>
+</div>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar"></nav>
+  <main class="main" id="main"></main>
+</div>
+
+<script>
+const stages = [
+  {
+    id: 0,
+    name: "Deal Created",
+    subtitle: "Selection stage",
+    trigger: "Deal created in system",
+    nextStage: "Contract Ready",
+    features: [
+      { name: "Edit model & elevation",            enabled: true,  changed: false },
+      { name: "Cancel deal",                       enabled: true,  changed: false },
+      { name: "Options",                           enabled: true,  changed: false },
+      { name: "Critical dates",                    enabled: false, changed: false },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: true,  changed: false },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: false, changed: false },
+      { name: "Incentives",                        enabled: true,  changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: true,  changed: false },
+      { name: "Mark contract ready",               enabled: true,  changed: false },
+      { name: "Revert contract ready",             enabled: false, changed: false },
+      { name: "Submit for approval",               enabled: false, changed: false },
+      { name: "Contract date",                     enabled: false, changed: false },
+      { name: "Set approval date",                 enabled: false, changed: false },
+      { name: "Withdraw approval",                 enabled: false, changed: false },
+      { name: "Send welcome email",                enabled: false, changed: false },
+      { name: "Close lot",                         enabled: false, changed: false },
+    ]
+  },
+  {
+    id: 1,
+    name: "Mark Contract Ready",
+    subtitle: "→ Contract Ready stage",
+    trigger: "Mark contract ready action",
+    nextStage: "Contract Date Set",
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: true  },
+      { name: "Cancel deal",                       enabled: false, changed: true  },
+      { name: "Options",                           enabled: true,  changed: false },
+      { name: "Critical dates",                    enabled: false, changed: false },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: true,  changed: false },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: true,  changed: true  },
+      { name: "Incentives",                        enabled: true,  changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: true,  changed: false },
+      { name: "Mark contract ready",               enabled: false, changed: true  },
+      { name: "Revert contract ready",             enabled: true,  changed: true  },
+      { name: "Submit for approval",               enabled: false, changed: false },
+      { name: "Contract date",                     enabled: true,  changed: true  },
+      { name: "Set approval date",                 enabled: false, changed: false },
+      { name: "Withdraw approval",                 enabled: false, changed: false },
+      { name: "Send welcome email",                enabled: false, changed: false },
+      { name: "Close lot",                         enabled: false, changed: false },
+    ]
+  },
+  {
+    id: 2,
+    name: "Set Contract Date",
+    subtitle: "Contract Ready stage",
+    trigger: "Contract date set",
+    nextStage: "Critical Dates Set",
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: false },
+      { name: "Cancel deal",                       enabled: false, changed: false },
+      { name: "Options",                           enabled: true,  changed: false },
+      { name: "Critical dates",                    enabled: true,  changed: true  },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: true,  changed: false },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: true,  changed: false },
+      { name: "Incentives",                        enabled: true,  changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: true,  changed: false },
+      { name: "Mark contract ready",               enabled: false, changed: false },
+      { name: "Revert contract ready",             enabled: true,  changed: false },
+      { name: "Submit for approval",               enabled: true,  changed: true  },
+      { name: "Contract date",                     enabled: false, changed: true  },
+      { name: "Set approval date",                 enabled: false, changed: false },
+      { name: "Withdraw approval",                 enabled: false, changed: false },
+      { name: "Send welcome email",                enabled: false, changed: false },
+      { name: "Close lot",                         enabled: false, changed: false },
+    ]
+  },
+  {
+    id: 3,
+    name: "Set Critical Dates",
+    subtitle: "Contract Ready stage",
+    trigger: "Critical dates configured",
+    nextStage: "Pending Offer",
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: false },
+      { name: "Cancel deal",                       enabled: false, changed: false },
+      { name: "Options",                           enabled: true,  changed: false },
+      { name: "Critical dates",                    enabled: true,  changed: false },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: true,  changed: false },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: true,  changed: false },
+      { name: "Incentives",                        enabled: true,  changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: true,  changed: false },
+      { name: "Mark contract ready",               enabled: false, changed: false },
+      { name: "Revert contract ready",             enabled: true,  changed: false },
+      { name: "Submit for approval",               enabled: true,  changed: false },
+      { name: "Contract date",                     enabled: false, changed: false },
+      { name: "Set approval date",                 enabled: false, changed: false },
+      { name: "Withdraw approval",                 enabled: false, changed: false },
+      { name: "Send welcome email",                enabled: false, changed: false },
+      { name: "Close lot",                         enabled: false, changed: false },
+    ]
+  },
+  {
+    id: 4,
+    name: "APS Generated (Buyers)",
+    subtitle: "→ Pending Offer stage",
+    trigger: "APS doc & buyer signatures done",
+    nextStage: "APS Signed (Executive)",
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: false },
+      { name: "Cancel deal",                       enabled: false, changed: false },
+      { name: "Options",                           enabled: false, changed: true  },
+      { name: "Critical dates",                    enabled: false, changed: true  },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: false, changed: true  },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: false, changed: true  },
+      { name: "Incentives",                        enabled: false, changed: true  },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: false, changed: true  },
+      { name: "Mark contract ready",               enabled: false, changed: false },
+      { name: "Revert contract ready",             enabled: false, changed: true  },
+      { name: "Submit for approval",               enabled: false, changed: true  },
+      { name: "Contract date",                     enabled: false, changed: false },
+      { name: "Set approval date",                 enabled: false, changed: false },
+      { name: "Withdraw approval",                 enabled: true,  changed: true  },
+      { name: "Send welcome email",                enabled: false, changed: false },
+      { name: "Close lot",                         enabled: false, changed: false },
+    ]
+  },
+  {
+    id: 5,
+    name: "APS Signed (Executive)",
+    subtitle: "Pending Offer stage",
+    trigger: "Executive signature completed",
+    nextStage: "Under Contract",
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: false },
+      { name: "Cancel deal",                       enabled: false, changed: false },
+      { name: "Options",                           enabled: false, changed: false },
+      { name: "Critical dates",                    enabled: false, changed: false },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: false, changed: false },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: false, changed: false },
+      { name: "Incentives",                        enabled: false, changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: false, changed: false },
+      { name: "Mark contract ready",               enabled: false, changed: false },
+      { name: "Revert contract ready",             enabled: false, changed: true  },
+      { name: "Submit for approval",               enabled: false, changed: false },
+      { name: "Contract date",                     enabled: false, changed: false },
+      { name: "Set approval date",                 enabled: true,  changed: true  },
+      { name: "Withdraw approval",                 enabled: true,  changed: false },
+      { name: "Send welcome email",                enabled: false, changed: false },
+      { name: "Close lot",                         enabled: false, changed: false },
+    ]
+  },
+  {
+    id: 6,
+    name: "Set Approval Date",
+    subtitle: "→ Under Contract stage",
+    trigger: "Approval date set",
+    nextStage: "Welcome Email Sent",
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: false },
+      { name: "Cancel deal",                       enabled: true,  changed: true  },
+      { name: "Options",                           enabled: false, changed: false },
+      { name: "Critical dates",                    enabled: false, changed: false },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: false, changed: false },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: false, changed: false },
+      { name: "Incentives",                        enabled: false, changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: false, changed: false },
+      { name: "Mark contract ready",               enabled: false, changed: false },
+      { name: "Revert contract ready",             enabled: false, changed: true  },
+      { name: "Submit for approval",               enabled: false, changed: false },
+      { name: "Contract date",                     enabled: false, changed: false },
+      { name: "Set approval date",                 enabled: false, changed: true  },
+      { name: "Withdraw approval",                 enabled: false, changed: true  },
+      { name: "Send welcome email",                enabled: true,  changed: true  },
+      { name: "Close lot",                         enabled: false, changed: false },
+    ]
+  },
+  {
+    id: 7,
+    name: "Send Welcome Email",
+    subtitle: "Under Contract stage",
+    trigger: "Welcome email sent to buyer",
+    nextStage: "Closed",
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: false },
+      { name: "Cancel deal",                       enabled: true,  changed: false },
+      { name: "Options",                           enabled: false, changed: false },
+      { name: "Critical dates",                    enabled: false, changed: false },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: false, changed: false },
+      { name: "Realtor agents",                    enabled: true,  changed: false },
+      { name: "Documents",                         enabled: false, changed: false },
+      { name: "Incentives",                        enabled: false, changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: false, changed: false },
+      { name: "Mark contract ready",               enabled: false, changed: false },
+      { name: "Revert contract ready",             enabled: false, changed: true  },
+      { name: "Submit for approval",               enabled: false, changed: false },
+      { name: "Contract date",                     enabled: false, changed: false },
+      { name: "Set approval date",                 enabled: false, changed: false },
+      { name: "Withdraw approval",                 enabled: false, changed: false },
+      { name: "Send welcome email",                enabled: false, changed: true  },
+      { name: "Close lot",                         enabled: true,  changed: true  },
+    ]
+  },
+  {
+    id: 8,
+    name: "Close Lot",
+    subtitle: "→ Closed stage",
+    trigger: "Lot closed",
+    nextStage: null,
+    features: [
+      { name: "Edit model & elevation",            enabled: false, changed: false },
+      { name: "Cancel deal",                       enabled: false, changed: true  },
+      { name: "Options",                           enabled: false, changed: false },
+      { name: "Critical dates",                    enabled: false, changed: false },
+      { name: "Deposits",                          enabled: true,  changed: false },
+      { name: "Lot communications",                enabled: true,  changed: false },
+      { name: "Co-buyers",                         enabled: false, changed: false },
+      { name: "Realtor agents",                    enabled: false, changed: true  },
+      { name: "Documents",                         enabled: false, changed: false },
+      { name: "Incentives",                        enabled: false, changed: false },
+      { name: "Reassign buyers",                   enabled: false, changed: false },
+      { name: "Buyer selection",                   enabled: false, changed: false },
+      { name: "Mark contract ready",               enabled: false, changed: false },
+      { name: "Revert contract ready",             enabled: false, changed: false },
+      { name: "Submit for approval",               enabled: false, changed: false },
+      { name: "Contract date",                     enabled: false, changed: false },
+      { name: "Set approval date",                 enabled: false, changed: false },
+      { name: "Withdraw approval",                 enabled: false, changed: false },
+      { name: "Send welcome email",                enabled: false, changed: false },
+      { name: "Close lot",                         enabled: false, changed: true  },
+    ]
+  },
+];
+
+let currentStage = 0;
+let activeFilter = 'all';
+
+function buildSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  let html = `<div class="sidebar-title">Deal stages</div>`;
+  stages.forEach((s, i) => {
+    html += `
+      <button class="stage-item ${i === currentStage ? 'active' : ''}" onclick="selectStage(${i})">
+        <div class="stage-num">${i + 1}</div>
+        <div class="stage-text">
+          <div class="stage-name">${s.name}</div>
+          <div class="stage-trigger">${s.subtitle}</div>
+        </div>
+      </button>`;
+    if (i < stages.length - 1) {
+      html += `<div class="stage-connector"><div class="stage-connector-line"></div></div>`;
+    }
+  });
+  sidebar.innerHTML = html;
+}
+
+function buildMain() {
+  const s = stages[currentStage];
+  const enabledCount  = s.features.filter(f => f.enabled).length;
+  const disabledCount = s.features.filter(f => !f.enabled).length;
+  const changedCount  = s.features.filter(f => f.changed).length;
+
+  let filtered = s.features;
+  if (activeFilter === 'enabled')  filtered = s.features.filter(f => f.enabled);
+  if (activeFilter === 'disabled') filtered = s.features.filter(f => !f.enabled);
+  if (activeFilter === 'changed')  filtered = s.features.filter(f => f.changed);
+
+  const prevLabel = currentStage > 0 ? `← ${stages[currentStage - 1].name}` : '';
+  const nextLabel = currentStage < stages.length - 1 ? `${stages[currentStage + 1].name} →` : '';
+
+  const icons = {
+    'Edit model & elevation': '🏠',
+    'Cancel deal': '✕',
+    'Options': '☰',
+    'Critical dates': '📅',
+    'Deposits': '💰',
+    'Lot communications': '✉',
+    'Co-buyers': '👥',
+    'Realtor agents': '🤝',
+    'Documents': '📄',
+    'Incentives': '★',
+    'Reassign buyers': '↔',
+    'Buyer selection': '✓',
+    'Mark contract ready': '●',
+    'Revert contract ready': '↩',
+    'Submit for approval': '↑',
+    'Contract date': '📆',
+    'Set approval date': '✔',
+    'Withdraw approval': '⊘',
+    'Send welcome email': '✉',
+    'Close lot': '🔒',
+  };
+
+  let cardsHtml = '';
+  if (filtered.length === 0) {
+    cardsHtml = `<div class="empty-state">No features match this filter.</div>`;
+  } else {
+    filtered.forEach(f => {
+      const icon = icons[f.name] || '·';
+      cardsHtml += `
+        <div class="feature-card ${f.changed ? 'changed' : ''}">
+          <div class="feature-icon ${f.enabled ? 'yes' : 'no'}">${icon}</div>
+          <div class="feature-card-body">
+            <div class="feature-name">${f.name} ${f.changed ? '<span class="changed-tag">Changed</span>' : ''}</div>
+            <div class="feature-status ${f.enabled ? 'yes' : 'no'}">${f.enabled ? 'Enabled' : 'Disabled'}</div>
+          </div>
+        </div>`;
+    });
+  }
+
+  document.getElementById('main').innerHTML = `
+    <div class="stage-header">
+      <div class="stage-header-eyebrow">Stage ${currentStage + 1} of ${stages.length}</div>
+      <h2>${s.name}</h2>
+      <div class="stage-trigger-banner">
+        <span class="trigger-arrow">→</span>
+        <span>Triggered by: <strong>${s.trigger}</strong></span>
+        ${s.nextStage ? `&nbsp;·&nbsp; Moves deal to: <strong>${s.nextStage}</strong>` : `&nbsp;·&nbsp; <strong>Final stage</strong>`}
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Enabled</div>
+        <div class="stat-value yes-color">${enabledCount}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Disabled</div>
+        <div class="stat-value no-color">${disabledCount}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Changed from previous</div>
+        <div class="stat-value new-color">${currentStage === 0 ? '—' : changedCount}</div>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <span class="filter-label">Show:</span>
+      <button class="filter-btn ${activeFilter === 'all'      ? 'active' : ''}" onclick="setFilter('all')">All (${s.features.length})</button>
+      <button class="filter-btn ${activeFilter === 'enabled'  ? 'active' : ''}" onclick="setFilter('enabled')">Enabled (${enabledCount})</button>
+      <button class="filter-btn ${activeFilter === 'disabled' ? 'active' : ''}" onclick="setFilter('disabled')">Disabled (${disabledCount})</button>
+      ${currentStage > 0 ? `<button class="filter-btn ${activeFilter === 'changed' ? 'active' : ''}" onclick="setFilter('changed')">Changed (${changedCount})</button>` : ''}
+    </div>
+
+    <div class="features-grid">${cardsHtml}</div>
+
+    <div class="nav-row">
+      <button class="nav-btn" onclick="selectStage(${currentStage - 1})" ${currentStage === 0 ? 'disabled' : ''}>${prevLabel || '← Previous'}</button>
+      <span class="nav-stage-info">${currentStage + 1} / ${stages.length}</span>
+      <button class="nav-btn" onclick="selectStage(${currentStage + 1})" ${currentStage === stages.length - 1 ? 'disabled' : ''}>${nextLabel || 'Next →'}</button>
+    </div>
+  `;
+}
+
+function selectStage(i) {
+  if (i < 0 || i >= stages.length) return;
+  currentStage = i;
+  activeFilter = 'all';
+  buildSidebar();
+  buildMain();
+  document.getElementById('main').scrollTop = 0;
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  buildMain();
+}
+
+buildSidebar();
+buildMain();
+</script>
+</body>
+</html>
